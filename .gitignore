@@ -1,4 +1,7 @@
 build
 dist
-resumablesha256.egg-info
+*.egg-info
 wheelhouse
+__pycache__
+*.so
+*.pyc
