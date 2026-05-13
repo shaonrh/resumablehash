@@ -18,12 +18,11 @@ classifiers = [
 dependencies = []
 license = {text = "Unlicense"}
 
+[project.optional-dependencies]
+test = ["pytest"]
+
 [project.urls]
 Homepage = "https://github.com/shaonrh/resumablehash"
-
-[tool.cibuildwheel]
-test-requires = "pytest"
-test-command = "pytest {project}/tests"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

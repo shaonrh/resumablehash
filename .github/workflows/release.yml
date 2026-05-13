@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: ubuntu-latest
+    container:
+      image: registry.access.redhat.com/ubi9/python-312:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest build
+          pip install -e .
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short -m "not benchmark"
+
+      - name: Build wheel and sdist
+        run: python -m build
+
+      - name: Verify wheel installs cleanly
+        run: |
+          pip install dist/*.whl --force-reinstall
+          python -c "import resumablehash; print(resumablehash.sha256(b'test').hexdigest())"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          generate_release_notes: true
+
+      # Uncomment when ready to publish to PyPI:
+      # - name: Publish to PyPI
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   with:
+      #     packages-dir: dist/
