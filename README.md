@@ -1,5 +1,8 @@
 # resumablehash
 
+[![CI](https://github.com/shaonrh/resumablehash/actions/workflows/ci.yml/badge.svg?branch=devel)](https://github.com/shaonrh/resumablehash/actions/workflows/ci.yml)
+<!-- [![PyPI](https://img.shields.io/pypi/v/resumablehash)](https://pypi.org/project/resumablehash/) — uncomment once published to PyPI -->
+
 Resumable SHA-2 hash implementations (SHA-256, SHA-384, SHA-512) with pickle support. Hash state can be saved and restored between sessions, enabling chunked hashing across multiple HTTP requests or processes.
 
 Uses a parameterized C implementation for all three algorithms — one template generates SHA-256, SHA-384, and SHA-512 with different constants and word sizes.
