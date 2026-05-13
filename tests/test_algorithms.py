@@ -130,6 +130,25 @@ class TestAlgorithms:
         h2 = cls(b"hello")
         assert h1.hexdigest() == h2.hexdigest()
 
+    def test_new_factory_no_data(self, algo_info):
+        """new(name) with no data arg must match empty constructor."""
+        name, cls, _, _ = algo_info
+        h1 = resumablehash.new(name)
+        h2 = cls()
+        assert h1.hexdigest() == h2.hexdigest()
+
+    def test_new_factory_empty_bytes(self, algo_info):
+        """new(name, b'') must not silently discard the argument (Issue 4 regression)."""
+        name, cls, _, _ = algo_info
+        h1 = resumablehash.new(name, b"")
+        h2 = cls(b"")
+        assert h1.hexdigest() == h2.hexdigest()
+
+    def test_new_factory_invalid_name(self, algo_info):
+        """new() with an unsupported algorithm must raise ValueError."""
+        with pytest.raises(ValueError, match="Unsupported algorithm"):
+            resumablehash.new("md5")
+
     def test_direct_import(self, algo_info):
         name, cls, _, _ = algo_info
         h = cls(b"hello world")

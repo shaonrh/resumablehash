@@ -205,6 +205,37 @@ def test_setstate_reject_leaves_object_usable(algo):
     assert h.hexdigest() == expected
 
 
+@pytest.mark.parametrize("src_algo,dst_algo", [
+    ("sha384", "sha512"),
+    ("sha512", "sha384"),
+])
+def test_setstate_rejects_cross_algorithm_same_struct(src_algo, dst_algo):
+    """SHA-384 and SHA-512 share SHA512_CTX (same struct size).
+
+    Only the algorithm tag in byte 2 of the header distinguishes them.
+    The length check passes, so the algorithm tag check must catch it.
+    This is the most security-critical cross-algorithm test.
+    """
+    h_src = resumablehash.new(src_algo, b"cross-algorithm test data")
+    state = h_src.__getstate__()
+    h_dst = resumablehash.new(dst_algo)
+    with pytest.raises(ValueError, match="cannot restore into"):
+        h_dst.__setstate__(state)
+
+
+@pytest.mark.parametrize("src_algo,dst_algo", [
+    ("sha256", "sha384"), ("sha256", "sha512"),
+    ("sha384", "sha256"), ("sha512", "sha256"),
+])
+def test_setstate_rejects_cross_algorithm_different_struct(src_algo, dst_algo):
+    """Cross-algorithm with different struct sizes is caught by length check."""
+    h_src = resumablehash.new(src_algo, b"cross-algorithm test data")
+    state = h_src.__getstate__()
+    h_dst = resumablehash.new(dst_algo)
+    with pytest.raises(ValueError):
+        h_dst.__setstate__(state)
+
+
 @pytest.mark.parametrize("algo", ["sha256", "sha384", "sha512"])
 def test_reduce_protocol(algo):
     """__reduce_ex__ must return a tuple that can reconstruct the object."""
