@@ -29,6 +29,14 @@ def test_throughput_comparison(algo):
 
     ratio = resumable_time / hashlib_time if hashlib_time > 0 else float("inf")
     print(f"\n{algo}: resumablehash={resumable_time:.4f}s, hashlib={hashlib_time:.4f}s, ratio={ratio:.1f}x")
+    # Fail if more than 50x slower than hashlib (hashlib uses hardware acceleration)
+    # This is a generous ceiling to catch catastrophic regressions, not a tight bound.
+    # hashlib uses OpenSSL's AES-NI/SHA-NI instructions, so our pure-C impl will be
+    # significantly slower. 50x is a reasonable "something went very wrong" threshold.
+    assert ratio < 50, (
+        f"{algo}: resumablehash is {ratio:.1f}x slower than hashlib, "
+        f"exceeds 50x ceiling"
+    )
 
 
 @pytest.mark.parametrize("algo", ["sha256", "sha512"])

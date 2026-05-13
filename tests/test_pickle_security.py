@@ -1,6 +1,7 @@
 """Tests for pickle serialization correctness and security properties."""
 
 import pickle
+import struct
 
 import pytest
 import resumablehash
@@ -23,13 +24,23 @@ def test_getstate_returns_bytes(algo):
 
 @pytest.mark.parametrize("algo", ["sha256", "sha384", "sha512"])
 def test_getstate_size(algo):
-    """State size should match the context struct size."""
+    """State size must be exactly 8 (header) + sizeof(context struct)."""
     h = resumablehash.new(algo)
     state = h.__getstate__()
+    # SHA-256 uses SHA256_CTX, SHA-384/512 use SHA512_CTX.
+    # SHA-384 and SHA-512 must have equal state sizes.
+    # SHA-256 must have a smaller state than SHA-512.
     if algo == "sha256":
-        assert len(state) > 0
-    else:
-        assert len(state) > 0
+        # SHA256_CTX is smaller than SHA512_CTX
+        h512 = resumablehash.new("sha512")
+        assert len(state) < len(h512.__getstate__())
+    elif algo == "sha384":
+        h512 = resumablehash.new("sha512")
+        assert len(state) == len(h512.__getstate__()), \
+            "SHA-384 and SHA-512 share SHA512_CTX, state sizes must match"
+    # All states must have at least 8 (header) + block_size bytes
+    assert len(state) > 8 + h.block_size
+    # State size must be stable (same object, different data)
     h_with_data = resumablehash.new(algo, b"some data here")
     assert len(h_with_data.__getstate__()) == len(state)
 
@@ -131,3 +142,80 @@ def test_setstate_rejects_wrong_version(algo):
     h2 = resumablehash.new(algo)
     with pytest.raises(ValueError, match="Unsupported state format version"):
         h2.__setstate__(bytes(tagged_state))
+
+
+@pytest.mark.parametrize("algo,block_size", [
+    ("sha256", 64), ("sha384", 128), ("sha512", 128)
+])
+def test_setstate_rejects_corrupt_datalen(algo, block_size):
+    """A crafted state with datalen >= block_size must be rejected (Issue 2)."""
+    h = resumablehash.new(algo, b"data")
+    state = bytearray(h.__getstate__())
+    # Corrupt the datalen field in the context struct.
+    # datalen is the first integer field after data[] in the struct.
+    # For SHA-256: offset 8 (header) + 64 (data) = byte 72, uint32_t
+    # For SHA-384/512: offset 8 (header) + 128 (data) = byte 136, uint64_t
+    header_size = 8
+    if algo == "sha256":
+        datalen_offset = header_size + 64  # after data[64]
+        struct.pack_into("<I", state, datalen_offset, block_size)  # datalen = block_size (invalid)
+    else:
+        datalen_offset = header_size + 128  # after data[128]
+        struct.pack_into("<Q", state, datalen_offset, block_size)  # datalen = block_size (invalid)
+    h2 = resumablehash.new(algo)
+    with pytest.raises(ValueError, match="datalen"):
+        h2.__setstate__(bytes(state))
+
+
+@pytest.mark.parametrize("algo,block_size", [
+    ("sha256", 64), ("sha384", 128), ("sha512", 128)
+])
+def test_setstate_rejects_extreme_datalen(algo, block_size):
+    """A crafted state with extremely large datalen must be rejected."""
+    h = resumablehash.new(algo, b"data")
+    state = bytearray(h.__getstate__())
+    header_size = 8
+    if algo == "sha256":
+        datalen_offset = header_size + 64
+        struct.pack_into("<I", state, datalen_offset, 0xFFFFFFFF)
+    else:
+        datalen_offset = header_size + 128
+        struct.pack_into("<Q", state, datalen_offset, 0xFFFFFFFFFFFFFFFF)
+    h2 = resumablehash.new(algo)
+    with pytest.raises(ValueError, match="datalen"):
+        h2.__setstate__(bytes(state))
+
+
+@pytest.mark.parametrize("algo", ["sha256", "sha384", "sha512"])
+def test_setstate_reject_leaves_object_usable(algo):
+    """After setstate rejects corrupt state, the object must still be usable."""
+    h = resumablehash.new(algo)
+    state = bytearray(resumablehash.new(algo, b"x").__getstate__())
+    # Corrupt datalen
+    header_size = 8
+    if algo == "sha256":
+        struct.pack_into("<I", state, header_size + 64, 999)
+    else:
+        struct.pack_into("<Q", state, header_size + 128, 999)
+    with pytest.raises(ValueError):
+        h.__setstate__(bytes(state))
+    # Object should still work (re-initialized to clean state)
+    h.update(b"hello")
+    expected = resumablehash.new(algo, b"hello").hexdigest()
+    assert h.hexdigest() == expected
+
+
+@pytest.mark.parametrize("algo", ["sha256", "sha384", "sha512"])
+def test_reduce_protocol(algo):
+    """__reduce_ex__ must return a tuple that can reconstruct the object."""
+    h = resumablehash.new(algo, b"test data")
+    reduced = h.__reduce_ex__(2)
+    # reduced should be a tuple: (callable, args, state) or (callable, args)
+    assert isinstance(reduced, tuple)
+    assert len(reduced) >= 2
+    # Verify we can actually reconstruct from the reduce output
+    h2 = pickle.loads(pickle.dumps(h, protocol=2))
+    assert h.hexdigest() == h2.hexdigest()
+    # Also test with highest protocol
+    h3 = pickle.loads(pickle.dumps(h, protocol=pickle.HIGHEST_PROTOCOL))
+    assert h.hexdigest() == h3.hexdigest()

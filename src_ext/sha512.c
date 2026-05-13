@@ -73,8 +73,7 @@ static const uint64_t sha384_iv[8] = {
 
 void sha384_init(SHA512_CTX *ctx)
 {
-    ctx->datalen = 0;
-    ctx->bitlen = 0;
+    memset(ctx, 0, sizeof(*ctx));
     for (int i = 0; i < 8; i++)
         ctx->state[i] = sha384_iv[i];
 }

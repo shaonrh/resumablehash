@@ -84,8 +84,7 @@ static void FN(transform)(CTX_T *ctx, const BYTE data[])
 
 void FN(init)(CTX_T *ctx)
 {
-    ctx->datalen = 0;
-    ctx->bitlen = 0;
+    memset(ctx, 0, sizeof(*ctx));
     for (int i = 0; i < 8; i++)
         ctx->state[i] = iv[i];
 }
@@ -107,7 +106,7 @@ void FN(update)(CTX_T *ctx, const BYTE data[], size_t len)
 
 void FN(final)(CTX_T *ctx, BYTE hash[])
 {
-    uint32_t i;
+    unsigned int i;
     int word_bytes = WORD_BITS / 8;
     /* Offset where the length field starts: BLOCK_BYTES - 8 for SHA-256,
        BLOCK_BYTES - 16 for SHA-512. Length field is 2 * word_bytes. */
@@ -115,9 +114,9 @@ void FN(final)(CTX_T *ctx, BYTE hash[])
 
     i = ctx->datalen;
 
-    if (ctx->datalen < (uint32_t)len_offset) {
+    if (ctx->datalen < (unsigned int)len_offset) {
         ctx->data[i++] = 0x80;
-        while (i < (uint32_t)len_offset)
+        while (i < (unsigned int)len_offset)
             ctx->data[i++] = 0x00;
     } else {
         ctx->data[i++] = 0x80;
