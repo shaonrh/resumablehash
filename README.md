@@ -74,6 +74,24 @@ The C implementation is approximately 2.5x slower than `hashlib` (which uses har
 
 In practice, the bottleneck is network and storage I/O, not hashing speed.
 
+## Development
+
+### Running tests
+
+```bash
+pip install -e ".[test]"
+pytest tests/ -v --tb=short -m "not benchmark"
+```
+
+### Releasing
+
+1. Update the version in both `pyproject.toml` and `setup.py`.
+2. Commit: `git commit -am "release: vX.Y.Z"`
+3. Tag: `git tag -a vX.Y.Z -m "vX.Y.Z: description"`
+4. Push: `git push origin devel --tags`
+
+Pushing a `v*` tag triggers the release workflow, which builds a wheel and sdist on UBI 9 / Python 3.12, runs the full test suite, and creates a GitHub Release with the artifacts attached.
+
 ## Acknowledgements
 
 - Brad Conte for the public domain SHA-256 C implementation ([crypto-algorithms](https://github.com/B-Con/crypto-algorithms))
